@@ -1,0 +1,150 @@
+@import url("https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+
+    /* Spotify Dark Theme — OKLCH tokens */
+    --background: 0.13 0 0;
+    --foreground: 0.97 0 0;
+    --card: 0.165 0 0;
+    --card-foreground: 0.97 0 0;
+    --popover: 0.2 0 0;
+    --popover-foreground: 0.97 0 0;
+    --primary: 0.69 0.19 145;
+    --primary-foreground: 0.1 0 0;
+    --secondary: 0.22 0 0;
+    --secondary-foreground: 0.97 0 0;
+    --muted: 0.22 0 0;
+    --muted-foreground: 0.72 0 0;
+    --accent: 0.25 0 0;
+    --accent-foreground: 0.97 0 0;
+    --destructive: 0.65 0.22 25;
+    --destructive-foreground: 0.97 0 0;
+    --border: 0.22 0 0;
+    --input: 0.25 0 0;
+    --ring: 0.69 0.19 145;
+    --chart-1: 0.69 0.19 145;
+    --chart-2: 0.6 0.15 200;
+    --chart-3: 0.7 0.15 60;
+    --chart-4: 0.65 0.2 300;
+    --chart-5: 0.6 0.18 30;
+    --sidebar: 0.13 0 0;
+    --sidebar-foreground: 0.97 0 0;
+    --sidebar-primary: 0.69 0.19 145;
+    --sidebar-primary-foreground: 0.1 0 0;
+    --sidebar-accent: 0.22 0 0;
+    --sidebar-accent-foreground: 0.97 0 0;
+    --sidebar-border: 0.2 0 0;
+    --sidebar-ring: 0.69 0.19 145;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Figtree", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+}
+
+@layer utilities {
+  /* Equalizer animation */
+  @keyframes eq-bounce {
+    0%,
+    100% {
+      transform: scaleY(0.3);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
+
+  .eq-bar {
+    width: 3px;
+    border-radius: 2px;
+    transform-origin: bottom;
+    background-color: oklch(var(--primary));
+    animation: eq-bounce 0.6s ease-in-out infinite;
+  }
+
+  .eq-bar:nth-child(1) {
+    animation-delay: 0s;
+  }
+  .eq-bar:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .eq-bar:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(var(--muted-foreground) / 0.35);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(var(--muted-foreground) / 0.6);
+  }
+
+  /* Progress / volume range input */
+  .omp-range {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    background: transparent;
+  }
+  .omp-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .omp-range:hover::-webkit-slider-thumb {
+    opacity: 1;
+  }
+  .omp-range::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+    border: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .omp-range:hover::-moz-range-thumb {
+    opacity: 1;
+  }
+
+  .glass {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+}
