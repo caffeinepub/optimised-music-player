@@ -1,15 +1,8 @@
-import { Music } from "lucide-react";
-
-function hashColor(str: string): string {
+function hashHue(str: string): number {
   let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    hash = hash & hash;
-  }
-  const h = Math.abs(hash) % 360;
-  const s = 40 + (Math.abs(hash >> 4) % 30);
-  const l = 28 + (Math.abs(hash >> 8) % 18);
-  return `hsl(${h}, ${s}%, ${l}%)`;
+  for (let i = 0; i < str.length; i++)
+    hash = (hash * 31 + str.charCodeAt(i)) & 0xffffff;
+  return ((hash % 360) + 360) % 360;
 }
 
 interface PlaceholderArtProps {
@@ -18,21 +11,28 @@ interface PlaceholderArtProps {
   className?: string;
 }
 
-export function PlaceholderArt({
+export default function PlaceholderArt({
   title,
   size = 48,
   className = "",
 }: PlaceholderArtProps) {
-  const bg = hashColor(title || "unknown");
+  const hue = hashHue(title);
   return (
-    <div
-      className={`flex items-center justify-center flex-shrink-0 rounded-md ${className}`}
-      style={{ width: size, height: size, background: bg }}
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      className={className}
+      style={{ borderRadius: 4, flexShrink: 0 }}
+      aria-label={title}
     >
-      <Music
-        style={{ width: size * 0.4, height: size * 0.4 }}
-        className="text-white/80"
+      <title>{title}</title>
+      <rect width="48" height="48" fill={`hsl(${hue},45%,20%)`} />
+      <path
+        d="M30 12v16.5a5 5 0 1 1-2-4V16l-10 2v14.5a5 5 0 1 1-2-4V13.5L30 12z"
+        fill={`hsl(${hue},60%,55%)`}
+        opacity="0.9"
       />
-    </div>
+    </svg>
   );
 }

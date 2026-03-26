@@ -1,15 +1,21 @@
-import { toast } from "sonner";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import * as audioEngine from "./audioEngine";
-import { deleteTrack as dbDeleteTrack, getAllTracks } from "./db";
+import { audioEngine } from "./audioEngine";
 import type { Track } from "./db";
-import {
-  clearSleepTimer as clearSleepTimerUtil,
-  startSleepTimer,
-} from "./sleepTimer";
+import { deleteTrack, loadAllTracks, saveTrack } from "./db";
 
-export type { Track };
+export type RepeatMode = "off" | "all" | "one";
+export type ViewType =
+  | "library"
+  | "search"
+  | "queue"
+  | "favorites"
+  | "recently-played"
+  | "stats"
+  | "smart-recently-added"
+  | "smart-most-played"
+  | "smart-top-50"
+  | { type: "playlist"; id: string };
 
 export interface Playlist {
   id: string;
@@ -18,378 +24,389 @@ export interface Playlist {
   createdAt: number;
 }
 
-export type RepeatMode = "off" | "all" | "one";
-export type ActiveView =
-  | "library"
-  | "favorites"
-  | "queue"
-  | "search"
-  | `playlist-${string}`;
-
 interface SleepTimerState {
   active: boolean;
   remaining: number;
+  intervalId?: ReturnType<typeof setInterval>;
 }
 
-export interface PlayerStore {
-  // State
+export interface EQSettings {
+  bass: number;
+  mid: number;
+  treble: number;
+}
+
+const EQ_PRESETS: Record<string, EQSettings> = {
+  Normal: { bass: 0, mid: 0, treble: 0 },
+  "Bass Boost": { bass: 6, mid: -2, treble: 0 },
+  "Treble Boost": { bass: 0, mid: 0, treble: 6 },
+  Pop: { bass: -1, mid: 3, treble: -1 },
+  Rock: { bass: 4, mid: 0, treble: 3 },
+  Classical: { bass: 0, mid: -2, treble: 4 },
+};
+
+export { EQ_PRESETS };
+
+interface MusicState {
   tracks: Track[];
+  queue: Track[];
   currentTrack: Track | null;
+  queueIndex: number;
   isPlaying: boolean;
   currentTime: number;
   duration: number;
   volume: number;
   shuffle: boolean;
   repeat: RepeatMode;
-  queue: Track[];
-  playlists: Playlist[];
   favorites: string[];
-  activeView: ActiveView;
-  searchQuery: string;
-  sidebarOpen: boolean;
-  sleepTimer: SleepTimerState | null;
+  playlists: Playlist[];
+  recentlyPlayed: string[];
+  sleepTimer: SleepTimerState;
   voiceActive: boolean;
+  currentView: ViewType;
+  showNowPlaying: boolean;
+  playCounts: Record<string, number>;
+  eqSettings: EQSettings;
+  eqPreset: string;
+  crossfade: number;
+  showMiniPlayer: boolean;
 
-  // Actions
   loadTracks: () => Promise<void>;
-  playTrack: (track: Track) => Promise<void>;
+  addFiles: (files: FileList) => Promise<void>;
+  deleteTrackById: (id: string) => Promise<void>;
+  playTrack: (track: Track) => void;
   togglePlayPause: () => void;
-  pause: () => void;
-  resume: () => void;
   nextTrack: () => void;
   prevTrack: () => void;
-  handleTrackEnded: () => void;
-  setCurrentTime: (t: number) => void;
-  setDuration: (d: number) => void;
+  seekTo: (t: number) => void;
+  seekForward: () => void;
+  seekBackward: () => void;
   setVolume: (v: number) => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
-  seekForward: () => void;
-  seekBackward: () => void;
-  seekTo: (seconds: number) => void;
   addToQueue: (track: Track) => void;
-  playNext: (track: Track) => void;
   removeFromQueue: (index: number) => void;
-  reorderQueue: (fromIndex: number, toIndex: number) => void;
-  clearQueue: () => void;
-  toggleFavorite: (trackId: string) => void;
+  toggleFavorite: (id: string) => void;
   createPlaylist: (name: string) => void;
   renamePlaylist: (id: string, name: string) => void;
   deletePlaylist: (id: string) => void;
-  addTrackToPlaylist: (playlistId: string, trackId: string) => void;
-  removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
-  deleteTrack: (id: string) => Promise<void>;
-  setActiveView: (view: ActiveView) => void;
-  setSearchQuery: (q: string) => void;
-  setSidebarOpen: (open: boolean) => void;
-  startSleepTimerAction: (minutes: number) => void;
-  clearSleepTimerAction: () => void;
+  addToPlaylist: (playlistId: string, trackId: string) => void;
+  removeFromPlaylist: (playlistId: string, trackId: string) => void;
+  startSleepTimer: (minutes: number) => void;
+  clearSleepTimer: () => void;
   toggleVoice: () => void;
+  setCurrentView: (view: ViewType) => void;
+  setCurrentTime: (t: number) => void;
+  setDuration: (d: number) => void;
+  handleTrackEnded: () => void;
+  setShowNowPlaying: (v: boolean) => void;
+  setEQBand: (band: "bass" | "mid" | "treble", gain: number) => void;
+  setEQPreset: (preset: string) => void;
+  setCrossfade: (s: number) => void;
+  toggleMiniPlayer: () => void;
+  incrementPlayCount: (id: string) => void;
 }
 
-export const usePlayerStore = create<PlayerStore>()(
+export const useMusicStore = create<MusicState>()(
   persist(
     (set, get) => ({
-      // Initial state
       tracks: [],
+      queue: [],
       currentTrack: null,
+      queueIndex: -1,
       isPlaying: false,
       currentTime: 0,
       duration: 0,
       volume: 0.8,
       shuffle: false,
       repeat: "off",
-      queue: [],
-      playlists: [],
       favorites: [],
-      activeView: "library",
-      searchQuery: "",
-      sidebarOpen: false,
-      sleepTimer: null,
+      playlists: [],
+      recentlyPlayed: [],
+      sleepTimer: { active: false, remaining: 0 },
       voiceActive: false,
+      currentView: "library",
+      showNowPlaying: false,
+      playCounts: {},
+      eqSettings: { bass: 0, mid: 0, treble: 0 },
+      eqPreset: "Normal",
+      crossfade: 0,
+      showMiniPlayer: false,
 
       loadTracks: async () => {
-        const tracks = await getAllTracks();
-        const sorted = [...tracks].sort((a, b) => b.addedAt - a.addedAt);
-        const trackIds = new Set(sorted.map((t) => t.id));
-        const { currentTrack, queue, favorites, playlists } = get();
-
-        // Clean up stale refs
-        const cleanQueue = queue.filter((t) => trackIds.has(t.id));
-        const cleanFavs = favorites.filter((id) => trackIds.has(id));
-        const cleanPlaylists = playlists.map((p) => ({
-          ...p,
-          trackIds: p.trackIds.filter((id) => trackIds.has(id)),
-        }));
-
-        set({
-          tracks: sorted,
-          queue: cleanQueue,
-          favorites: cleanFavs,
-          playlists: cleanPlaylists,
-        });
-
-        if (currentTrack && !trackIds.has(currentTrack.id)) {
-          audioEngine.pause();
-          set({ currentTrack: null, isPlaying: false });
-        }
+        const tracks = await loadAllTracks();
+        set({ tracks });
+        audioEngine.setVolume(get().volume);
       },
 
-      playTrack: async (track: Track) => {
-        set({
-          currentTrack: track,
-          currentTime: 0,
-          duration: 0,
-          isPlaying: false,
-        });
-        try {
-          await audioEngine.play(track.id, track.title, track.artist);
-          audioEngine.setVolume(get().volume);
-          set({ isPlaying: true });
-        } catch (err) {
-          console.error(err);
-          set({ isPlaying: false });
-          toast.error(`Cannot play "${track.title}"`);
+      addFiles: async (files) => {
+        const existing = get().tracks;
+        const newTracks: Track[] = [];
+        for (const file of Array.from(files)) {
+          if (!file.type.startsWith("audio/")) continue;
+          if (existing.some((t) => t.filename === file.name)) continue;
+          try {
+            const track = await saveTrack(file);
+            newTracks.push({ ...track, blobUrl: URL.createObjectURL(file) });
+          } catch (e) {
+            console.error(e);
+          }
         }
+        if (newTracks.length > 0)
+          set((s) => ({ tracks: [...s.tracks, ...newTracks] }));
+      },
+
+      deleteTrackById: async (id) => {
+        await deleteTrack(id);
+        set((s) => ({
+          tracks: s.tracks.filter((t) => t.id !== id),
+          queue: s.queue.filter((t) => t.id !== id),
+          favorites: s.favorites.filter((f) => f !== id),
+          currentTrack: s.currentTrack?.id === id ? null : s.currentTrack,
+        }));
+      },
+
+      incrementPlayCount: (id) =>
+        set((s) => ({
+          playCounts: { ...s.playCounts, [id]: (s.playCounts[id] ?? 0) + 1 },
+        })),
+
+      playTrack: (track) => {
+        const { queue } = get();
+        let idx = queue.findIndex((t) => t.id === track.id);
+        if (idx === -1) {
+          const tracks = get().tracks;
+          const ti = tracks.findIndex((t) => t.id === track.id);
+          const newQueue = [...tracks.slice(ti), ...tracks.slice(0, ti)];
+          set({ queue: newQueue, queueIndex: 0 });
+          idx = 0;
+        } else {
+          set({ queueIndex: idx });
+        }
+        if (track.blobUrl) {
+          audioEngine.loadTrack(track.blobUrl);
+          audioEngine.play().catch(console.error);
+        }
+        get().incrementPlayCount(track.id);
+        set((s) => ({
+          currentTrack: track,
+          isPlaying: true,
+          recentlyPlayed: [
+            track.id,
+            ...s.recentlyPlayed.filter((id) => id !== track.id),
+          ].slice(0, 50),
+        }));
       },
 
       togglePlayPause: () => {
-        const { isPlaying, currentTrack, tracks } = get();
-        if (!currentTrack) {
-          if (tracks.length > 0) get().playTrack(tracks[0]);
-          return;
-        }
+        const { isPlaying } = get();
         if (isPlaying) {
           audioEngine.pause();
           set({ isPlaying: false });
         } else {
-          audioEngine.resume();
+          audioEngine.play().catch(console.error);
           set({ isPlaying: true });
         }
       },
 
-      pause: () => {
-        audioEngine.pause();
-        set({ isPlaying: false });
-      },
-
-      resume: () => {
-        const { currentTrack, tracks } = get();
-        if (!currentTrack && tracks.length > 0) {
-          get().playTrack(tracks[0]);
-          return;
-        }
-        audioEngine.resume();
-        set({ isPlaying: true });
-      },
-
       nextTrack: () => {
-        const { queue, tracks, currentTrack, shuffle, repeat } = get();
-        if (repeat === "one" && currentTrack) {
-          get().playTrack(currentTrack);
-          return;
+        const { queue, queueIndex, shuffle, repeat } = get();
+        if (!queue.length) return;
+        let next: number;
+        if (repeat === "one") next = queueIndex;
+        else if (shuffle) next = Math.floor(Math.random() * queue.length);
+        else {
+          next = queueIndex + 1;
+          if (next >= queue.length) {
+            if (repeat === "all") next = 0;
+            else return;
+          }
         }
-        if (queue.length > 0) {
-          const [next, ...rest] = queue;
-          set({ queue: rest });
-          get().playTrack(next);
-          return;
+        const track = queue[next];
+        if (track?.blobUrl) {
+          audioEngine.loadTrack(track.blobUrl);
+          audioEngine.play().catch(console.error);
         }
-        if (tracks.length === 0) return;
-        if (shuffle) {
-          const idx = Math.floor(Math.random() * tracks.length);
-          get().playTrack(tracks[idx]);
-          return;
-        }
-        const idx = currentTrack
-          ? tracks.findIndex((t) => t.id === currentTrack.id)
-          : -1;
-        const next = idx + 1;
-        if (next >= tracks.length) {
-          if (repeat === "all") get().playTrack(tracks[0]);
-          else set({ isPlaying: false });
-        } else {
-          get().playTrack(tracks[next]);
-        }
+        get().incrementPlayCount(track.id);
+        set((s) => ({
+          currentTrack: track,
+          queueIndex: next,
+          isPlaying: true,
+          recentlyPlayed: [
+            track.id,
+            ...s.recentlyPlayed.filter((id) => id !== track.id),
+          ].slice(0, 50),
+        }));
       },
 
       prevTrack: () => {
-        const { tracks, currentTrack, currentTime, repeat } = get();
+        const { queue, queueIndex, currentTime } = get();
         if (currentTime > 3) {
-          audioEngine.seek(0);
+          audioEngine.seekTo(0);
           return;
         }
-        if (!currentTrack || tracks.length === 0) return;
-        const idx = tracks.findIndex((t) => t.id === currentTrack.id);
-        const prev = idx - 1;
-        if (prev < 0) {
-          if (repeat === "all") get().playTrack(tracks[tracks.length - 1]);
-          else audioEngine.seek(0);
-        } else {
-          get().playTrack(tracks[prev]);
+        if (!queue.length) return;
+        const prev = Math.max(0, queueIndex - 1);
+        const track = queue[prev];
+        if (track?.blobUrl) {
+          audioEngine.loadTrack(track.blobUrl);
+          audioEngine.play().catch(console.error);
         }
+        set({ currentTrack: track, queueIndex: prev, isPlaying: true });
       },
 
-      handleTrackEnded: () => {
-        get().nextTrack();
+      seekTo: (t) => {
+        audioEngine.seekTo(t);
+        set({ currentTime: t });
       },
-
-      setCurrentTime: (t) => set({ currentTime: t }),
-      setDuration: (d) => set({ duration: d }),
-
+      seekForward: () => audioEngine.seekForward(10),
+      seekBackward: () => audioEngine.seekBackward(10),
       setVolume: (v) => {
         audioEngine.setVolume(v);
         set({ volume: v });
       },
-
       toggleShuffle: () => set((s) => ({ shuffle: !s.shuffle })),
+      cycleRepeat: () =>
+        set((s) => ({
+          repeat:
+            s.repeat === "off" ? "all" : s.repeat === "all" ? "one" : "off",
+        })),
+      addToQueue: (track) => set((s) => ({ queue: [...s.queue, track] })),
+      removeFromQueue: (index) =>
+        set((s) => ({
+          queue: s.queue.filter((_, i) => i !== index),
+          queueIndex:
+            index < s.queueIndex
+              ? s.queueIndex - 1
+              : index === s.queueIndex
+                ? Math.min(s.queueIndex, s.queue.length - 2)
+                : s.queueIndex,
+        })),
+      toggleFavorite: (id) =>
+        set((s) => ({
+          favorites: s.favorites.includes(id)
+            ? s.favorites.filter((f) => f !== id)
+            : [...s.favorites, id],
+        })),
+      createPlaylist: (name) =>
+        set((s) => ({
+          playlists: [
+            ...s.playlists,
+            {
+              id: `pl_${Date.now()}`,
+              name,
+              trackIds: [],
+              createdAt: Date.now(),
+            },
+          ],
+        })),
+      renamePlaylist: (id, name) =>
+        set((s) => ({
+          playlists: s.playlists.map((p) => (p.id === id ? { ...p, name } : p)),
+        })),
+      deletePlaylist: (id) =>
+        set((s) => ({ playlists: s.playlists.filter((p) => p.id !== id) })),
+      addToPlaylist: (plId, tId) =>
+        set((s) => ({
+          playlists: s.playlists.map((p) =>
+            p.id === plId && !p.trackIds.includes(tId)
+              ? { ...p, trackIds: [...p.trackIds, tId] }
+              : p,
+          ),
+        })),
+      removeFromPlaylist: (plId, tId) =>
+        set((s) => ({
+          playlists: s.playlists.map((p) =>
+            p.id === plId
+              ? { ...p, trackIds: p.trackIds.filter((id) => id !== tId) }
+              : p,
+          ),
+        })),
 
-      cycleRepeat: () => {
-        const order: RepeatMode[] = ["off", "all", "one"];
-        const cur = get().repeat;
-        const next = order[(order.indexOf(cur) + 1) % order.length];
-        set({ repeat: next });
-      },
-
-      seekForward: () => audioEngine.seekForward(),
-      seekBackward: () => audioEngine.seekBackward(),
-      seekTo: (s) => audioEngine.seek(s),
-
-      addToQueue: (track) => {
-        set((state) => ({ queue: [...state.queue, track] }));
-        toast.success(`Added "${track.title}" to queue`);
-      },
-
-      playNext: (track) => {
-        set((state) => ({ queue: [track, ...state.queue] }));
-        toast.success(`"${track.title}" plays next`);
-      },
-
-      removeFromQueue: (index) => {
-        set((state) => ({ queue: state.queue.filter((_, i) => i !== index) }));
-      },
-
-      reorderQueue: (fromIndex, toIndex) => {
-        set((state) => {
-          const q = [...state.queue];
-          const [item] = q.splice(fromIndex, 1);
-          q.splice(toIndex, 0, item);
-          return { queue: q };
+      startSleepTimer: (minutes) => {
+        const { sleepTimer } = get();
+        if (sleepTimer.intervalId) clearInterval(sleepTimer.intervalId);
+        const intervalId = setInterval(() => {
+          const { sleepTimer: st } = get();
+          if (st.remaining <= 1) {
+            audioEngine.pause();
+            set({
+              isPlaying: false,
+              sleepTimer: { active: false, remaining: 0 },
+            });
+            clearInterval(intervalId);
+          } else {
+            set((s) => ({
+              sleepTimer: {
+                ...s.sleepTimer,
+                remaining: s.sleepTimer.remaining - 1,
+              },
+            }));
+          }
+        }, 1000);
+        set({
+          sleepTimer: { active: true, remaining: minutes * 60, intervalId },
         });
       },
 
-      clearQueue: () => set({ queue: [] }),
+      clearSleepTimer: () => {
+        const { sleepTimer } = get();
+        if (sleepTimer.intervalId) clearInterval(sleepTimer.intervalId);
+        set({ sleepTimer: { active: false, remaining: 0 } });
+      },
 
-      toggleFavorite: (trackId) => {
-        set((state) => ({
-          favorites: state.favorites.includes(trackId)
-            ? state.favorites.filter((id) => id !== trackId)
-            : [...state.favorites, trackId],
+      toggleVoice: () => set((s) => ({ voiceActive: !s.voiceActive })),
+      setCurrentView: (view) => set({ currentView: view }),
+      setCurrentTime: (t) => set({ currentTime: t }),
+      setDuration: (d) => set({ duration: d }),
+      handleTrackEnded: () => {
+        if (get().repeat === "one") {
+          audioEngine.seekTo(0);
+          audioEngine.play().catch(console.error);
+        } else get().nextTrack();
+      },
+      setShowNowPlaying: (v) => set({ showNowPlaying: v }),
+
+      setEQBand: (band, gain) => {
+        audioEngine.setEQBand(band, gain);
+        set((s) => ({
+          eqSettings: { ...s.eqSettings, [band]: gain },
+          eqPreset: "Custom",
         }));
       },
 
-      createPlaylist: (name) => {
-        const playlist: Playlist = {
-          id: crypto.randomUUID(),
-          name,
-          trackIds: [],
-          createdAt: Date.now(),
-        };
-        set((state) => ({ playlists: [...state.playlists, playlist] }));
+      setEQPreset: (preset) => {
+        const settings = EQ_PRESETS[preset];
+        if (!settings) return;
+        audioEngine.setEQBand("bass", settings.bass);
+        audioEngine.setEQBand("mid", settings.mid);
+        audioEngine.setEQBand("treble", settings.treble);
+        set({ eqSettings: settings, eqPreset: preset });
       },
 
-      renamePlaylist: (id, name) => {
-        set((state) => ({
-          playlists: state.playlists.map((p) =>
-            p.id === id ? { ...p, name } : p,
-          ),
-        }));
+      setCrossfade: (s) => {
+        audioEngine.setCrossfade(s);
+        set({ crossfade: s });
       },
 
-      deletePlaylist: (id) => {
-        set((state) => ({
-          playlists: state.playlists.filter((p) => p.id !== id),
-        }));
-        const { activeView } = get();
-        if (activeView === `playlist-${id}`) set({ activeView: "library" });
-      },
-
-      addTrackToPlaylist: (playlistId, trackId) => {
-        set((state) => ({
-          playlists: state.playlists.map((p) =>
-            p.id === playlistId && !p.trackIds.includes(trackId)
-              ? { ...p, trackIds: [...p.trackIds, trackId] }
-              : p,
-          ),
-        }));
-      },
-
-      removeTrackFromPlaylist: (playlistId, trackId) => {
-        set((state) => ({
-          playlists: state.playlists.map((p) =>
-            p.id === playlistId
-              ? { ...p, trackIds: p.trackIds.filter((id) => id !== trackId) }
-              : p,
-          ),
-        }));
-      },
-
-      deleteTrack: async (id) => {
-        const { currentTrack } = get();
-        if (currentTrack?.id === id) {
-          audioEngine.pause();
-          set({ currentTrack: null, isPlaying: false, currentTime: 0 });
-        }
-        await dbDeleteTrack(id);
-        set((state) => ({
-          tracks: state.tracks.filter((t) => t.id !== id),
-          queue: state.queue.filter((t) => t.id !== id),
-          favorites: state.favorites.filter((f) => f !== id),
-          playlists: state.playlists.map((p) => ({
-            ...p,
-            trackIds: p.trackIds.filter((tid) => tid !== id),
-          })),
-        }));
-        toast.success("Track removed");
-      },
-
-      setActiveView: (view) => set({ activeView: view }),
-      setSearchQuery: (q) => set({ searchQuery: q }),
-      setSidebarOpen: (open) => set({ sidebarOpen: open }),
-
-      startSleepTimerAction: (minutes) => {
-        startSleepTimer(
-          minutes,
-          () => {
-            get().pause();
-            set({ sleepTimer: null });
-            toast.info("Sleep timer ended — playback stopped");
-          },
-          (remaining) => {
-            set({ sleepTimer: { active: true, remaining } });
-          },
-        );
-        toast.success(`Sleep timer set for ${minutes} minutes`);
-      },
-
-      clearSleepTimerAction: () => {
-        clearSleepTimerUtil();
-        set({ sleepTimer: null });
-      },
-
-      toggleVoice: () => {
-        set((state) => ({ voiceActive: !state.voiceActive }));
-      },
+      toggleMiniPlayer: () =>
+        set((s) => ({ showMiniPlayer: !s.showMiniPlayer })),
     }),
     {
-      name: "omp-state",
+      name: "music-player-storage",
       partialize: (state) => ({
         volume: state.volume,
         shuffle: state.shuffle,
         repeat: state.repeat,
-        queue: state.queue,
-        playlists: state.playlists,
         favorites: state.favorites,
+        playlists: state.playlists,
+        recentlyPlayed: state.recentlyPlayed,
+        voiceActive: state.voiceActive,
+        playCounts: state.playCounts,
+        eqSettings: state.eqSettings,
+        eqPreset: state.eqPreset,
+        crossfade: state.crossfade,
+        showMiniPlayer: state.showMiniPlayer,
       }),
     },
   ),

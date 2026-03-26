@@ -1,48 +1,45 @@
 import { Heart } from "lucide-react";
-import { TrackRow } from "../components/TrackRow";
-import { usePlayerStore } from "../lib/store";
+import TrackRow from "../components/TrackRow";
+import { useMusicStore } from "../lib/store";
 
 export default function FavoritesView() {
-  const tracks = usePlayerStore((s) => s.tracks);
-  const favorites = usePlayerStore((s) => s.favorites);
-  const playlists = usePlayerStore((s) => s.playlists);
-  const playTrack = usePlayerStore((s) => s.playTrack);
-
+  const { tracks, favorites } = useMusicStore();
   const favTracks = tracks.filter((t) => favorites.includes(t.id));
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Heart className="h-6 w-6 text-primary" fill="currentColor" />
-          Favorites
-        </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          {favTracks.length} track{favTracks.length !== 1 ? "s" : ""}
-        </p>
-      </div>
-
-      {favTracks.length === 0 ? (
+    <div className="p-6" data-ocid="favorites.section">
+      <div className="flex items-center gap-4 mb-6">
         <div
-          className="flex flex-col items-center justify-center py-24 text-center"
-          data-ocid="favorites.empty_state"
+          className="w-14 h-14 rounded-lg flex items-center justify-center"
+          style={{ background: "linear-gradient(135deg, #450af5, #c4efd9)" }}
         >
-          <Heart className="h-16 w-16 text-muted-foreground mb-4" />
-          <h2 className="text-xl font-semibold mb-2">No favorites yet</h2>
-          <p className="text-muted-foreground">
-            Click the heart icon on any track to add it here.
+          <Heart size={28} fill="white" className="text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-white">Liked Songs</h1>
+          <p className="text-sm" style={{ color: "#b3b3b3" }}>
+            {favTracks.length} song{favTracks.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+      </div>
+      {favTracks.length === 0 ? (
+        <div className="text-center py-16" data-ocid="favorites.empty_state">
+          <Heart
+            size={48}
+            className="mx-auto mb-4"
+            style={{ color: "#535353" }}
+          />
+          <p className="text-white font-semibold">
+            Songs you like will appear here
+          </p>
+          <p className="text-sm mt-2" style={{ color: "#b3b3b3" }}>
+            Save songs by tapping the heart icon
           </p>
         </div>
       ) : (
-        <div className="space-y-0.5" data-ocid="favorites.list">
-          {favTracks.map((track, i) => (
-            <TrackRow
-              key={track.id}
-              track={track}
-              index={i + 1}
-              playlists={playlists}
-              onPlay={() => playTrack(track)}
-            />
+        <div className="flex flex-col">
+          {favTracks.map((t, i) => (
+            <TrackRow key={t.id} track={t} index={i} />
           ))}
         </div>
       )}

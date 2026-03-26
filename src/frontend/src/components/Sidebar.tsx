@@ -1,258 +1,290 @@
-import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
-import {
+  BarChart2,
+  Clock,
   Heart,
   Library,
-  List,
+  ListMusic,
   Music2,
-  Pencil,
   Plus,
   Search,
-  Trash2,
+  Sparkles,
+  Star,
+  TrendingUp,
+  Upload,
 } from "lucide-react";
-import { useState } from "react";
-import { usePlayerStore } from "../lib/store";
-import type { ActiveView, Playlist } from "../lib/store";
-
-const navItems: { label: string; view: ActiveView; icon: React.ReactNode }[] = [
-  { label: "Library", view: "library", icon: <Library className="h-4 w-4" /> },
-  { label: "Search", view: "search", icon: <Search className="h-4 w-4" /> },
-  {
-    label: "Favorites",
-    view: "favorites",
-    icon: <Heart className="h-4 w-4" />,
-  },
-  { label: "Queue", view: "queue", icon: <List className="h-4 w-4" /> },
-];
+import { useRef } from "react";
+import { toast } from "sonner";
+import { type ViewType, useMusicStore } from "../lib/store";
 
 interface SidebarProps {
-  onNavigate: () => void;
+  onClose: () => void;
 }
 
-export default function Sidebar({ onNavigate }: SidebarProps) {
-  const activeView = usePlayerStore((s) => s.activeView);
-  const playlists = usePlayerStore((s) => s.playlists);
-  const setActiveView = usePlayerStore((s) => s.setActiveView);
-  const createPlaylist = usePlayerStore((s) => s.createPlaylist);
-  const renamePlaylist = usePlayerStore((s) => s.renamePlaylist);
-  const deletePlaylist = usePlayerStore((s) => s.deletePlaylist);
+export default function Sidebar({ onClose }: SidebarProps) {
+  const { currentView, setCurrentView, playlists, createPlaylist, addFiles } =
+    useMusicStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [showNewDialog, setShowNewDialog] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [editPlaylist, setEditPlaylist] = useState<Playlist | null>(null);
-  const [editName, setEditName] = useState("");
+  const navItems: { label: string; view: ViewType; icon: React.ReactNode }[] = [
+    { label: "Library", view: "library", icon: <Library size={18} /> },
+    { label: "Search", view: "search", icon: <Search size={18} /> },
+    { label: "Queue", view: "queue", icon: <ListMusic size={18} /> },
+    { label: "Liked Songs", view: "favorites", icon: <Heart size={18} /> },
+    {
+      label: "Recently Played",
+      view: "recently-played",
+      icon: <Clock size={18} />,
+    },
+    { label: "Stats", view: "stats", icon: <BarChart2 size={18} /> },
+  ];
 
-  const handleCreate = () => {
-    if (!newName.trim()) return;
-    createPlaylist(newName.trim());
-    setNewName("");
-    setShowNewDialog(false);
+  const smartPlaylists: {
+    label: string;
+    view: ViewType;
+    icon: React.ReactNode;
+  }[] = [
+    {
+      label: "Recently Added",
+      view: "smart-recently-added",
+      icon: <Sparkles size={16} />,
+    },
+    {
+      label: "Most Played",
+      view: "smart-most-played",
+      icon: <TrendingUp size={16} />,
+    },
+    { label: "Top 50", view: "smart-top-50", icon: <Star size={16} /> },
+  ];
+
+  const isActive = (view: ViewType) => {
+    if (typeof currentView === "object" && typeof view === "object") {
+      return (
+        (currentView as { type: string; id: string }).id ===
+        (view as { type: string; id: string }).id
+      );
+    }
+    return currentView === view;
   };
 
-  const handleRename = () => {
-    if (!editPlaylist || !editName.trim()) return;
-    renamePlaylist(editPlaylist.id, editName.trim());
-    setEditPlaylist(null);
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) {
+      await addFiles(e.target.files);
+      toast.success(`Added ${e.target.files.length} track(s)`);
+    }
+    e.target.value = "";
   };
 
-  const navigate = (view: ActiveView) => {
-    setActiveView(view);
-    onNavigate();
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files.length) {
+      await addFiles(e.dataTransfer.files);
+      toast.success(`Added ${e.dataTransfer.files.length} track(s)`);
+    }
   };
+
+  const navBtn = (
+    view: ViewType,
+    icon: React.ReactNode,
+    label: string,
+    ocid: string,
+  ) => (
+    <button
+      type="button"
+      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left w-full"
+      style={{
+        color: isActive(view) ? "white" : "rgba(255,255,255,0.5)",
+        background: isActive(view)
+          ? "linear-gradient(135deg, rgba(139,92,246,0.35), rgba(236,72,153,0.2))"
+          : "transparent",
+        borderLeft: isActive(view)
+          ? "2px solid #8B5CF6"
+          : "2px solid transparent",
+      }}
+      onClick={() => {
+        setCurrentView(view);
+        onClose();
+      }}
+      data-ocid={ocid}
+    >
+      <span style={{ color: isActive(view) ? "#a78bfa" : "inherit" }}>
+        {icon}
+      </span>
+      <span>{label}</span>
+    </button>
+  );
 
   return (
-    <div className="flex flex-col h-full">
+    <div
+      className="flex flex-col h-full px-3 py-4 gap-1"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
+    >
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 py-5 flex-shrink-0">
-        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-          <Music2 className="h-4 w-4 text-primary-foreground" />
+      <div className="flex items-center gap-2.5 px-3 pb-4">
+        <div
+          className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: "linear-gradient(135deg, #8B5CF6, #EC4899)" }}
+        >
+          <Music2 size={16} color="white" />
         </div>
-        <span className="font-semibold text-sm text-primary leading-tight">
-          Optimised
-          <br />
-          Music Player
+        <span
+          className="font-bold text-lg"
+          style={{
+            background: "linear-gradient(90deg, #a78bfa, #f472b6)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
+          Music
         </span>
       </div>
 
-      {/* Nav */}
-      <nav className="px-3 space-y-0.5 flex-shrink-0">
-        {navItems.map((item) => (
-          <button
-            type="button"
-            key={item.view}
-            data-ocid={`nav.${item.view}.link`}
-            onClick={() => navigate(item.view)}
-            className={cn(
-              "flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium transition-colors",
-              activeView === item.view
-                ? "bg-accent text-primary"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
-            )}
-          >
-            {item.icon}
-            {item.label}
-          </button>
-        ))}
+      {/* Upload button */}
+      <button
+        type="button"
+        className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-sm font-semibold transition-all mb-3 hover:scale-[1.02] active:scale-[0.98]"
+        style={{
+          background: "linear-gradient(135deg, #8B5CF6, #EC4899)",
+          color: "#fff",
+          boxShadow: "0 4px 16px rgba(139,92,246,0.4)",
+        }}
+        onClick={() => fileInputRef.current?.click()}
+        data-ocid="sidebar.upload_button"
+      >
+        <Upload size={16} /> Upload Music
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="audio/*"
+        multiple
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      <nav className="flex flex-col gap-0.5">
+        {navItems.map((item) =>
+          navBtn(
+            item.view,
+            item.icon,
+            item.label,
+            `nav.${String(item.view)}.link`,
+          ),
+        )}
       </nav>
 
-      <div className="mx-4 my-3 border-t border-border flex-shrink-0" />
+      <div className="mt-4 flex-1 overflow-y-auto">
+        {/* Smart Playlists */}
+        <div className="mb-3">
+          <div className="flex items-center px-3 mb-1.5">
+            <span
+              className="text-xs font-bold uppercase tracking-wider"
+              style={{
+                background: "linear-gradient(90deg, #8B5CF6, #06B6D4)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+              }}
+            >
+              Smart Playlists
+            </span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            {smartPlaylists.map((sp) =>
+              navBtn(sp.view, sp.icon, sp.label, `nav.${String(sp.view)}.link`),
+            )}
+          </div>
+        </div>
 
-      {/* Playlists */}
-      <div className="flex items-center justify-between px-5 mb-2 flex-shrink-0">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Playlists
-        </span>
-        <button
-          type="button"
-          data-ocid="sidebar.create_playlist.button"
-          onClick={() => setShowNewDialog(true)}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-          title="New Playlist"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
-      </div>
-
-      <ScrollArea className="flex-1 px-3">
-        {playlists.length === 0 && (
-          <p className="text-xs text-muted-foreground px-3 py-2">
-            No playlists yet
-          </p>
-        )}
-        {playlists.map((pl) => (
+        {/* User Playlists */}
+        <div className="flex items-center justify-between px-3 mb-2">
+          <span
+            className="text-xs font-bold uppercase tracking-wider"
+            style={{
+              background: "linear-gradient(90deg, #EC4899, #06B6D4)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
+            Playlists
+          </span>
           <button
             type="button"
-            key={pl.id}
-            className={cn(
-              "group flex items-center gap-2 w-full px-3 py-2 rounded-md transition-colors text-left",
-              activeView === `playlist-${pl.id}`
-                ? "bg-accent text-foreground"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
-            )}
-            data-ocid="sidebar.playlist.link"
-            onClick={() => navigate(`playlist-${pl.id}`)}
+            className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
+            style={{ color: "rgba(255,255,255,0.5)" }}
+            onClick={() => {
+              const n = prompt("Playlist name:");
+              if (n?.trim()) createPlaylist(n.trim());
+            }}
+            data-ocid="playlist.open_modal_button"
           >
-            <Music2 className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="text-sm flex-1 truncate">{pl.name}</span>
-            <div className="hidden group-hover:flex items-center gap-1">
-              <button
-                type="button"
-                data-ocid="sidebar.playlist.edit_button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditPlaylist(pl);
-                  setEditName(pl.name);
-                }}
-                className="p-0.5 rounded hover:text-foreground"
-              >
-                <Pencil className="h-3 w-3" />
-              </button>
-              <button
-                type="button"
-                data-ocid="sidebar.playlist.delete_button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deletePlaylist(pl.id);
-                }}
-                className="p-0.5 rounded hover:text-destructive"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </div>
+            <Plus size={14} />
           </button>
-        ))}
-      </ScrollArea>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          {playlists.map((pl) => {
+            const view: ViewType = { type: "playlist", id: pl.id };
+            const active = isActive(view);
+            return (
+              <button
+                type="button"
+                key={pl.id}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all text-left w-full"
+                style={{
+                  color: active ? "white" : "rgba(255,255,255,0.5)",
+                  background: active
+                    ? "linear-gradient(135deg, rgba(139,92,246,0.35), rgba(236,72,153,0.2))"
+                    : "transparent",
+                  borderLeft: active
+                    ? "2px solid #8B5CF6"
+                    : "2px solid transparent",
+                }}
+                onClick={() => {
+                  setCurrentView(view);
+                  onClose();
+                }}
+                data-ocid="playlist.link"
+              >
+                <ListMusic
+                  size={16}
+                  style={{ color: active ? "#a78bfa" : "inherit" }}
+                />
+                <span className="truncate">{pl.name}</span>
+              </button>
+            );
+          })}
+          {playlists.length === 0 && (
+            <p
+              className="px-3 py-2 text-xs"
+              style={{ color: "rgba(255,255,255,0.25)" }}
+            >
+              No playlists yet
+            </p>
+          )}
+        </div>
+      </div>
 
-      {/* Footer */}
-      <div className="px-4 py-3 flex-shrink-0">
-        <p className="text-[11px] text-muted-foreground">
-          &copy; {new Date().getFullYear()}.{" "}
+      <div
+        className="pt-2 border-t"
+        style={{ borderColor: "rgba(139,92,246,0.15)" }}
+      >
+        <p className="text-xs px-3" style={{ color: "rgba(255,255,255,0.2)" }}>
+          Drag audio files here to upload
+        </p>
+        <p
+          className="text-xs px-3 mt-1"
+          style={{ color: "rgba(255,255,255,0.2)" }}
+        >
+          &copy; {new Date().getFullYear()}. Built with &hearts; using{" "}
           <a
             href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
             target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-primary transition-colors"
+            rel="noreferrer"
+            className="underline hover:text-purple-400 transition-colors"
           >
-            Built with ❤️ caffeine.ai
+            caffeine.ai
           </a>
         </p>
       </div>
-
-      {/* New Playlist Dialog */}
-      <Dialog open={showNewDialog} onOpenChange={setShowNewDialog}>
-        <DialogContent className="bg-card border-border">
-          <DialogHeader>
-            <DialogTitle>New Playlist</DialogTitle>
-          </DialogHeader>
-          <Input
-            data-ocid="sidebar.playlist_name.input"
-            placeholder="Playlist name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-            autoFocus
-          />
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setShowNewDialog(false)}
-              data-ocid="sidebar.create_playlist.cancel_button"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreate}
-              data-ocid="sidebar.create_playlist.confirm_button"
-            >
-              Create
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Rename Playlist Dialog */}
-      <Dialog
-        open={!!editPlaylist}
-        onOpenChange={(o) => !o && setEditPlaylist(null)}
-      >
-        <DialogContent className="bg-card border-border">
-          <DialogHeader>
-            <DialogTitle>Rename Playlist</DialogTitle>
-          </DialogHeader>
-          <Input
-            data-ocid="sidebar.rename_playlist.input"
-            placeholder="New name"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleRename()}
-            autoFocus
-          />
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setEditPlaylist(null)}
-              data-ocid="sidebar.rename_playlist.cancel_button"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleRename}
-              data-ocid="sidebar.rename_playlist.confirm_button"
-            >
-              Rename
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

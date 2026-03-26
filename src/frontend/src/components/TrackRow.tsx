@@ -1,210 +1,145 @@
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
-import {
-  Heart,
-  ListPlus,
-  ListStart,
-  MoreHorizontal,
-  Play,
-  PlusSquare,
-  Trash2,
-} from "lucide-react";
+import { Heart, Play, Plus, Trash2 } from "lucide-react";
 import type { Track } from "../lib/db";
 import { formatDuration } from "../lib/helpers";
-import { PlaceholderArt } from "../lib/placeholderArt";
-import { usePlayerStore } from "../lib/store";
-import type { Playlist } from "../lib/store";
+import PlaceholderArt from "../lib/placeholderArt";
+import { useMusicStore } from "../lib/store";
 
 interface TrackRowProps {
   track: Track;
-  index: number;
-  playlists: Playlist[];
-  onPlay?: () => void;
-  extraMenuItems?: React.ReactNode;
-  showIndex?: boolean;
+  index?: number;
+  showDelete?: boolean;
+  onDelete?: (id: string) => void;
+  playlistId?: string;
 }
 
-export function TrackRow({
+export default function TrackRow({
   track,
-  index,
-  playlists,
-  onPlay,
-  extraMenuItems,
-  showIndex = true,
+  index = 0,
+  showDelete = false,
+  onDelete,
+  playlistId,
 }: TrackRowProps) {
-  const currentTrack = usePlayerStore((s) => s.currentTrack);
-  const isPlaying = usePlayerStore((s) => s.isPlaying);
-  const favorites = usePlayerStore((s) => s.favorites);
-  const toggleFavorite = usePlayerStore((s) => s.toggleFavorite);
-  const addToQueue = usePlayerStore((s) => s.addToQueue);
-  const playNext = usePlayerStore((s) => s.playNext);
-  const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
-  const deleteTrack = usePlayerStore((s) => s.deleteTrack);
-  const playTrack = usePlayerStore((s) => s.playTrack);
-
+  const {
+    currentTrack,
+    isPlaying,
+    playTrack,
+    toggleFavorite,
+    favorites,
+    addToQueue,
+    removeFromPlaylist,
+    setShowNowPlaying,
+  } = useMusicStore();
   const isCurrentTrack = currentTrack?.id === track.id;
-  const isFavorite = favorites.includes(track.id);
-  const isActivelyPlaying = isCurrentTrack && isPlaying;
-
-  const handlePlay = () => {
-    if (onPlay) onPlay();
-    else playTrack(track);
-  };
+  const isFav = favorites.includes(track.id);
 
   return (
-    <div
-      className={cn(
-        "group flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors",
-        isCurrentTrack
-          ? "bg-accent border-l-2 border-primary"
-          : "hover:bg-accent/60",
-      )}
-      data-ocid={`track.item.${index}`}
-      onDoubleClick={handlePlay}
+    <button
+      type="button"
+      className="group flex items-center gap-3 px-4 py-2 rounded-md cursor-pointer transition-colors hover:bg-[#1a1a1a] w-full text-left"
+      style={{ background: isCurrentTrack ? "#282828" : "transparent" }}
+      onClick={() => playTrack(track)}
+      data-ocid={`track.item.${index + 1}`}
     >
-      {/* Index / Equalizer */}
-      <div className="w-6 flex-shrink-0 flex items-center justify-center">
-        {isActivelyPlaying ? (
-          <div className="flex items-end gap-[2px] h-4">
-            <div className="eq-bar h-full" />
-            <div className="eq-bar h-full" />
-            <div className="eq-bar h-full" />
-          </div>
-        ) : showIndex ? (
-          <>
-            <span
-              className={cn(
-                "text-xs group-hover:hidden",
-                isCurrentTrack ? "text-primary" : "text-muted-foreground",
-              )}
-            >
-              {index}
-            </span>
-            <button
-              type="button"
-              className="hidden group-hover:flex text-foreground"
-              onClick={handlePlay}
-              data-ocid={`track.play.button.${index}`}
-            >
-              <Play className="h-3.5 w-3.5" fill="currentColor" />
-            </button>
-          </>
+      <div
+        className="w-6 flex items-center justify-center flex-shrink-0 text-sm"
+        style={{ color: isCurrentTrack ? "#1DB954" : "#b3b3b3" }}
+      >
+        {isCurrentTrack && isPlaying ? (
+          <span style={{ color: "#1DB954" }}>▶</span>
         ) : (
-          <button
-            type="button"
-            className="hidden group-hover:flex text-foreground"
-            onClick={handlePlay}
-            data-ocid={`track.play.button.${index}`}
-          >
-            <Play className="h-3.5 w-3.5" fill="currentColor" />
-          </button>
+          <span className="group-hover:hidden">{index + 1}</span>
         )}
+        <Play
+          size={14}
+          className="hidden group-hover:block"
+          style={{ color: isCurrentTrack ? "#1DB954" : "white" }}
+        />
       </div>
-
-      {/* Art + Title */}
-      <PlaceholderArt title={track.title} size={40} />
+      <button
+        type="button"
+        className="flex-shrink-0 rounded focus:outline-none"
+        onClick={(e) => {
+          e.stopPropagation();
+          playTrack(track);
+          setShowNowPlaying(true);
+        }}
+        data-ocid={`track.open_modal_button.${index + 1}`}
+        title="Open Now Playing"
+      >
+        <PlaceholderArt title={track.title} size={40} className="rounded" />
+      </button>
       <div className="flex-1 min-w-0">
         <p
-          className={cn(
-            "text-sm font-medium truncate",
-            isCurrentTrack && "text-primary",
-          )}
+          className="text-sm font-medium truncate"
+          style={{ color: isCurrentTrack ? "#1DB954" : "white" }}
         >
           {track.title}
         </p>
-        <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
+        <p className="text-xs truncate" style={{ color: "#b3b3b3" }}>
+          {track.artist}
+        </p>
       </div>
-
-      {/* Duration */}
-      <span className="text-xs text-muted-foreground flex-shrink-0 hidden sm:block">
-        {formatDuration(track.duration)}
-      </span>
-
-      {/* Favorite */}
-      <button
-        type="button"
-        data-ocid={`track.favorite.toggle.${index}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          toggleFavorite(track.id);
-        }}
-        className={cn(
-          "flex-shrink-0 transition-colors",
-          isFavorite
-            ? "text-primary"
-            : "text-muted-foreground opacity-0 group-hover:opacity-100",
-        )}
+      <span
+        className="text-xs tabular-nums flex-shrink-0"
+        style={{ color: "#b3b3b3" }}
       >
-        <Heart
-          className="h-4 w-4"
-          fill={isFavorite ? "currentColor" : "none"}
-        />
-      </button>
-
-      {/* More menu */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+        {formatDuration(track.duration ?? 0)}
+      </span>
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          type="button"
+          className="w-7 h-7 flex items-center justify-center rounded-full hover:text-white transition-colors"
+          style={{ color: isFav ? "#1DB954" : "#b3b3b3" }}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleFavorite(track.id);
+          }}
+          data-ocid={`track.toggle.${index + 1}`}
+        >
+          <Heart size={14} fill={isFav ? "currentColor" : "none"} />
+        </button>
+        <button
+          type="button"
+          className="w-7 h-7 flex items-center justify-center rounded-full hover:text-white transition-colors"
+          style={{ color: "#b3b3b3" }}
+          onClick={(e) => {
+            e.stopPropagation();
+            addToQueue(track);
+          }}
+          title="Add to queue"
+          data-ocid={`track.secondary_button.${index + 1}`}
+        >
+          <Plus size={14} />
+        </button>
+        {showDelete && onDelete && (
           <button
             type="button"
-            data-ocid={`track.more.button.${index}`}
-            className="flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground transition-colors p-1 rounded"
-            onClick={(e) => e.stopPropagation()}
+            className="w-7 h-7 flex items-center justify-center rounded-full hover:text-red-400 transition-colors"
+            style={{ color: "#b3b3b3" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(track.id);
+            }}
+            data-ocid={`track.delete_button.${index + 1}`}
           >
-            <MoreHorizontal className="h-4 w-4" />
+            <Trash2 size={14} />
           </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="bg-popover border-border">
-          <DropdownMenuItem
-            onClick={() => addToQueue(track)}
-            data-ocid={`track.add_to_queue.button.${index}`}
+        )}
+        {playlistId && (
+          <button
+            type="button"
+            className="w-7 h-7 flex items-center justify-center rounded-full hover:text-red-400 transition-colors"
+            style={{ color: "#b3b3b3" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              removeFromPlaylist(playlistId, track.id);
+            }}
+            data-ocid={`track.delete_button.${index + 1}`}
           >
-            <ListPlus className="h-4 w-4 mr-2" /> Add to Queue
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => playNext(track)}
-            data-ocid={`track.play_next.button.${index}`}
-          >
-            <ListStart className="h-4 w-4 mr-2" /> Play Next
-          </DropdownMenuItem>
-          {playlists.length > 0 && (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <PlusSquare className="h-4 w-4 mr-2" /> Add to Playlist
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="bg-popover border-border">
-                {playlists.map((pl) => (
-                  <DropdownMenuItem
-                    key={pl.id}
-                    onClick={() => addTrackToPlaylist(pl.id, track.id)}
-                    data-ocid={`track.add_to_playlist.button.${index}`}
-                  >
-                    {pl.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          )}
-          {extraMenuItems && <DropdownMenuSeparator />}
-          {extraMenuItems}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => deleteTrack(track.id)}
-            className="text-destructive"
-            data-ocid={`track.delete.button.${index}`}
-          >
-            <Trash2 className="h-4 w-4 mr-2" /> Remove
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+            <Trash2 size={14} />
+          </button>
+        )}
+      </div>
+    </button>
   );
 }

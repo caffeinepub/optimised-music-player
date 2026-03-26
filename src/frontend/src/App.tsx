@@ -1,59 +1,67 @@
 import { Toaster } from "@/components/ui/sonner";
 import { useEffect } from "react";
 import Layout from "./components/Layout";
-import { initAudioEngine, setupMediaSessionHandlers } from "./lib/audioEngine";
-import { usePlayerStore } from "./lib/store";
-import {
-  startVoiceRecognition,
-  stopVoiceRecognition,
-} from "./lib/voiceAssistant";
+import { audioEngine } from "./lib/audioEngine";
+import { useMusicStore } from "./lib/store";
+import { voiceAssistant } from "./lib/voiceAssistant";
 
 export default function App() {
-  const loadTracks = usePlayerStore((s) => s.loadTracks);
-  const voiceActive = usePlayerStore((s) => s.voiceActive);
+  const {
+    loadTracks,
+    setCurrentTime,
+    setDuration,
+    handleTrackEnded,
+    currentTrack,
+    nextTrack,
+    prevTrack,
+    togglePlayPause,
+    toggleShuffle,
+    voiceActive,
+  } = useMusicStore();
 
   useEffect(() => {
-    // Always dark mode
-    document.documentElement.classList.add("dark");
+    audioEngine.onTimeUpdate = setCurrentTime;
+    audioEngine.onDurationChange = setDuration;
+    audioEngine.onEnded = handleTrackEnded;
+  }, [setCurrentTime, setDuration, handleTrackEnded]);
 
-    // Init audio engine with store callbacks
-    initAudioEngine({
-      onTimeUpdate: (t) => usePlayerStore.setState({ currentTime: t }),
-      onDurationChange: (d) => usePlayerStore.setState({ duration: d }),
-      onEnded: () => usePlayerStore.getState().handleTrackEnded(),
-    });
-
-    // Media Session handlers
-    setupMediaSessionHandlers({
-      onPlay: () => usePlayerStore.getState().resume(),
-      onPause: () => usePlayerStore.getState().pause(),
-      onNext: () => usePlayerStore.getState().nextTrack(),
-      onPrev: () => usePlayerStore.getState().prevTrack(),
-    });
-
-    // Load tracks from IndexedDB
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
+  useEffect(() => {
     loadTracks();
-  }, [loadTracks]);
+  }, []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: media session setup
+  useEffect(() => {
+    if (!currentTrack || !navigator.mediaSession) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentTrack.title,
+      artist: currentTrack.artist,
+    });
+    navigator.mediaSession.setActionHandler("play", () => togglePlayPause());
+    navigator.mediaSession.setActionHandler("pause", () => togglePlayPause());
+    navigator.mediaSession.setActionHandler("nexttrack", () => nextTrack());
+    navigator.mediaSession.setActionHandler("previoustrack", () => prevTrack());
+  }, [currentTrack]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: voice init once
+  useEffect(() => {
+    voiceAssistant.init((cmd) => {
+      if (cmd === "play" || cmd === "pause") togglePlayPause();
+      else if (cmd === "next") nextTrack();
+      else if (cmd === "previous") prevTrack();
+      else if (cmd === "shuffle") toggleShuffle();
+    });
+  }, []);
 
   useEffect(() => {
-    if (voiceActive) {
-      startVoiceRecognition({
-        play: () => usePlayerStore.getState().resume(),
-        pause: () => usePlayerStore.getState().pause(),
-        next: () => usePlayerStore.getState().nextTrack(),
-        previous: () => usePlayerStore.getState().prevTrack(),
-        shuffle: () => usePlayerStore.getState().toggleShuffle(),
-        stop: () => usePlayerStore.getState().pause(),
-      });
-    } else {
-      stopVoiceRecognition();
-    }
+    if (voiceActive) voiceAssistant.start();
+    else voiceAssistant.stop();
   }, [voiceActive]);
 
   return (
     <>
       <Layout />
-      <Toaster theme="dark" position="top-right" richColors />
+      <Toaster />
     </>
   );
 }

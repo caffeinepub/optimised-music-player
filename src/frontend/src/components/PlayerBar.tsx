@@ -1,11 +1,3 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 import {
   Heart,
   Mic,
@@ -17,377 +9,544 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
+  SlidersHorizontal,
   Timer,
   Volume2,
   VolumeX,
-  X,
 } from "lucide-react";
 import { useState } from "react";
-import { formatDuration } from "../lib/helpers";
-import { PlaceholderArt } from "../lib/placeholderArt";
-import { usePlayerStore } from "../lib/store";
-
-const SLEEP_PRESETS = [15, 30, 45, 60];
+import { formatDuration, formatTimer } from "../lib/helpers";
+import PlaceholderArt from "../lib/placeholderArt";
+import { useMusicStore } from "../lib/store";
+import EqualizerPanel from "./EqualizerPanel";
 
 export default function PlayerBar() {
-  const currentTrack = usePlayerStore((s) => s.currentTrack);
-  const isPlaying = usePlayerStore((s) => s.isPlaying);
-  const currentTime = usePlayerStore((s) => s.currentTime);
-  const duration = usePlayerStore((s) => s.duration);
-  const volume = usePlayerStore((s) => s.volume);
-  const shuffle = usePlayerStore((s) => s.shuffle);
-  const repeat = usePlayerStore((s) => s.repeat);
-  const favorites = usePlayerStore((s) => s.favorites);
-  const sleepTimer = usePlayerStore((s) => s.sleepTimer);
-  const voiceActive = usePlayerStore((s) => s.voiceActive);
+  const {
+    currentTrack,
+    isPlaying,
+    currentTime,
+    duration,
+    volume,
+    shuffle,
+    repeat,
+    favorites,
+    sleepTimer,
+    voiceActive,
+    togglePlayPause,
+    nextTrack,
+    prevTrack,
+    seekTo,
+    setVolume,
+    toggleShuffle,
+    cycleRepeat,
+    toggleFavorite,
+    startSleepTimer,
+    clearSleepTimer,
+    toggleVoice,
+    setShowNowPlaying,
+  } = useMusicStore();
 
-  const togglePlayPause = usePlayerStore((s) => s.togglePlayPause);
-  const nextTrack = usePlayerStore((s) => s.nextTrack);
-  const prevTrack = usePlayerStore((s) => s.prevTrack);
-  const seekTo = usePlayerStore((s) => s.seekTo);
-  const seekForward = usePlayerStore((s) => s.seekForward);
-  const seekBackward = usePlayerStore((s) => s.seekBackward);
-  const setVolume = usePlayerStore((s) => s.setVolume);
-  const toggleShuffle = usePlayerStore((s) => s.toggleShuffle);
-  const cycleRepeat = usePlayerStore((s) => s.cycleRepeat);
-  const toggleFavorite = usePlayerStore((s) => s.toggleFavorite);
-  const startSleepTimer = usePlayerStore((s) => s.startSleepTimerAction);
-  const clearSleepTimer = usePlayerStore((s) => s.clearSleepTimerAction);
-  const toggleVoice = usePlayerStore((s) => s.toggleVoice);
+  const [showTimer, setShowTimer] = useState(false);
+  const [customMin, setCustomMin] = useState("");
+  const [showVol, setShowVol] = useState(false);
+  const [showEQ, setShowEQ] = useState(false);
 
-  const [customMinutes, setCustomMinutes] = useState("");
-  const [sleepOpen, setSleepOpen] = useState(false);
-
-  const isFavorite = currentTrack ? favorites.includes(currentTrack.id) : false;
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const bgStyle = {
-    background: `linear-gradient(to right, oklch(var(--primary)) ${progress}%, oklch(var(--secondary)) ${progress}%)`,
-  };
-  const volBgStyle = {
-    background: `linear-gradient(to right, oklch(var(--primary)) ${volume * 100}%, oklch(var(--secondary)) ${volume * 100}%)`,
-  };
+  const isFav = currentTrack ? favorites.includes(currentTrack.id) : false;
 
-  const handleProgressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    seekTo(Number.parseFloat(e.target.value));
-  };
-
-  const handleSleepPreset = (minutes: number) => {
-    startSleepTimer(minutes);
-    setSleepOpen(false);
-  };
-
-  const handleCustomSleep = () => {
-    const m = Number.parseFloat(customMinutes);
-    if (m > 0) {
-      startSleepTimer(m);
-      setSleepOpen(false);
-      setCustomMinutes("");
-    }
-  };
-
-  const formatRemaining = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  };
+  const iconBtn = (active = false) =>
+    `flex items-center justify-center w-11 h-11 rounded-full transition-all ${
+      active
+        ? "text-purple-400"
+        : "text-white/50 hover:text-white hover:bg-white/10"
+    }`;
 
   return (
     <div
-      className="flex-shrink-0 h-[88px] md:h-[90px] glass border-t border-border flex items-center px-3 md:px-4 gap-3"
-      style={{ background: "oklch(var(--card) / 0.97)" }}
-      data-ocid="player.panel"
+      className="relative flex-shrink-0"
+      style={{
+        background: "rgba(10,10,20,0.97)",
+        backdropFilter: "blur(20px)",
+        borderTop: "1px solid rgba(139,92,246,0.3)",
+        zIndex: 40,
+      }}
     >
-      {/* Left: Track info */}
-      <div className="flex items-center gap-3 w-[180px] md:w-[220px] flex-shrink-0 min-w-0">
-        {currentTrack ? (
-          <>
-            <PlaceholderArt
-              title={currentTrack.title}
-              size={46}
-              className="rounded-sm"
+      {/* Gradient top border accent */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 2,
+          background:
+            "linear-gradient(90deg, #8B5CF6, #EC4899, #06B6D4, #8B5CF6)",
+          backgroundSize: "200% 100%",
+        }}
+      />
+
+      {showTimer && (
+        <div
+          className="absolute bottom-full right-4 mb-2 rounded-xl shadow-2xl p-4 w-56 z-50"
+          style={{
+            background: "rgba(20,15,40,0.97)",
+            border: "1px solid rgba(139,92,246,0.4)",
+            backdropFilter: "blur(20px)",
+          }}
+        >
+          <p className="text-white text-sm font-semibold mb-3">Sleep Timer</p>
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            {[15, 30, 45, 60].map((min) => (
+              <button
+                type="button"
+                key={min}
+                className="py-2 text-sm rounded-lg font-medium transition-all hover:scale-105 active:scale-95"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(139,92,246,0.3), rgba(236,72,153,0.3))",
+                  border: "1px solid rgba(139,92,246,0.4)",
+                  color: "#fff",
+                }}
+                onClick={() => {
+                  startSleepTimer(min);
+                  setShowTimer(false);
+                }}
+                data-ocid="timer.button"
+              >
+                {min} min
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              placeholder="Custom min"
+              value={customMin}
+              onChange={(e) => setCustomMin(e.target.value)}
+              className="flex-1 px-2 py-1.5 text-sm rounded-lg text-white outline-none"
+              style={{
+                background: "rgba(255,255,255,0.1)",
+                border: "1px solid rgba(139,92,246,0.3)",
+              }}
+              data-ocid="timer.input"
             />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate">
-                {currentTrack.title}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {currentTrack.artist}
-              </p>
-            </div>
             <button
               type="button"
-              data-ocid="player.favorite.toggle"
-              onClick={() => toggleFavorite(currentTrack.id)}
-              className={cn(
-                "flex-shrink-0 transition-colors",
-                isFavorite
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
+              className="px-3 py-1.5 text-sm rounded-lg font-medium transition-all hover:scale-105"
+              style={{
+                background: "linear-gradient(135deg, #8B5CF6, #EC4899)",
+                color: "#fff",
+              }}
+              onClick={() => {
+                const m = Number.parseInt(customMin);
+                if (m > 0) {
+                  startSleepTimer(m);
+                  setShowTimer(false);
+                  setCustomMin("");
+                }
+              }}
+              data-ocid="timer.submit_button"
             >
-              <Heart
-                className="h-4 w-4"
-                fill={isFavorite ? "currentColor" : "none"}
-              />
+              Set
             </button>
-          </>
-        ) : (
-          <p className="text-xs text-muted-foreground">No track selected</p>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
 
-      {/* Center: Controls + Progress */}
-      <div className="flex flex-col items-center flex-1 min-w-0 gap-1">
-        <div className="flex items-center gap-1 md:gap-2">
+      <EqualizerPanel open={showEQ} onClose={() => setShowEQ(false)} />
+
+      {/* Mobile layout: stacked rows */}
+      <div className="flex flex-col px-2 pt-2 pb-2 md:hidden">
+        {/* Row 1: Track info + heart + utility icons */}
+        <div className="flex items-center gap-2 w-full min-w-0 mb-1">
           <button
             type="button"
-            data-ocid="player.shuffle.toggle"
-            onClick={toggleShuffle}
-            className={cn(
-              "p-1.5 rounded-full transition-colors",
-              shuffle
-                ? "text-primary"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            title="Shuffle"
+            className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer rounded-lg hover:bg-white/5 transition-colors px-1 py-1"
+            onClick={() => currentTrack && setShowNowPlaying(true)}
+            data-ocid="player.open_modal_button"
           >
-            <Shuffle className="h-4 w-4" />
-          </button>
-
-          <button
-            type="button"
-            data-ocid="player.prev.button"
-            onClick={prevTrack}
-            className="p-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <SkipBack className="h-4 w-4" fill="currentColor" />
-          </button>
-
-          <button
-            type="button"
-            data-ocid="player.seek_back.button"
-            onClick={seekBackward}
-            className="hidden md:flex p-1 rounded-full text-muted-foreground hover:text-foreground transition-colors text-[10px] items-center gap-0.5"
-            title="Back 10s"
-          >
-            <SkipBack className="h-3.5 w-3.5" />
-            <span className="text-[9px]">10</span>
-          </button>
-
-          <button
-            type="button"
-            data-ocid="player.play_pause.button"
-            onClick={togglePlayPause}
-            className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:scale-105 transition-transform"
-          >
-            {isPlaying ? (
-              <Pause className="h-4 w-4 md:h-5 md:w-5" fill="currentColor" />
+            {currentTrack ? (
+              <PlaceholderArt
+                title={currentTrack.title}
+                size={36}
+                className="rounded-lg flex-shrink-0"
+              />
             ) : (
-              <Play className="h-4 w-4 md:h-5 md:w-5" fill="currentColor" />
+              <div
+                className="w-9 h-9 rounded-lg flex-shrink-0"
+                style={{ background: "rgba(139,92,246,0.2)" }}
+              />
             )}
+            <div className="min-w-0 flex-1">
+              <p
+                className="text-sm font-semibold truncate leading-tight"
+                style={{
+                  background: currentTrack
+                    ? "linear-gradient(90deg, #fff, #d8b4fe)"
+                    : "none",
+                  WebkitBackgroundClip: currentTrack ? "text" : "none",
+                  WebkitTextFillColor: currentTrack ? "transparent" : "#4a4a5a",
+                  color: currentTrack ? "white" : "#4a4a5a",
+                }}
+              >
+                {currentTrack?.title ?? "No track selected"}
+              </p>
+              <p
+                className="text-xs truncate"
+                style={{ color: "rgba(255,255,255,0.4)" }}
+              >
+                {currentTrack?.artist ?? ""}
+              </p>
+            </div>
           </button>
 
-          <button
-            type="button"
-            data-ocid="player.seek_fwd.button"
-            onClick={seekForward}
-            className="hidden md:flex p-1 rounded-full text-muted-foreground hover:text-foreground transition-colors items-center gap-0.5"
-            title="Forward 10s"
-          >
-            <span className="text-[9px]">10</span>
-            <SkipForward className="h-3.5 w-3.5" />
-          </button>
+          {currentTrack && (
+            <button
+              type="button"
+              className="flex items-center justify-center w-10 h-10 rounded-full flex-shrink-0 transition-all active:scale-90"
+              style={{ color: isFav ? "#EC4899" : "rgba(255,255,255,0.4)" }}
+              onClick={() => toggleFavorite(currentTrack.id)}
+              data-ocid="player.toggle"
+            >
+              <Heart size={18} fill={isFav ? "currentColor" : "none"} />
+            </button>
+          )}
 
+          {/* Utility icons on mobile */}
           <button
             type="button"
-            data-ocid="player.next.button"
-            onClick={nextTrack}
-            className="p-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+            className={iconBtn(showEQ)}
+            onClick={() => setShowEQ(!showEQ)}
+            style={{ width: 40, height: 40, minWidth: 40 }}
+            data-ocid="player.toggle"
           >
-            <SkipForward className="h-4 w-4" fill="currentColor" />
+            <SlidersHorizontal size={16} />
           </button>
-
           <button
             type="button"
-            data-ocid="player.repeat.toggle"
-            onClick={cycleRepeat}
-            className={cn(
-              "p-1.5 rounded-full transition-colors",
-              repeat !== "off"
-                ? "text-primary"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            title={`Repeat: ${repeat}`}
+            className={iconBtn(sleepTimer.active)}
+            onClick={() =>
+              sleepTimer.active ? clearSleepTimer() : setShowTimer(!showTimer)
+            }
+            style={{ width: 40, height: 40, minWidth: 40 }}
+            data-ocid="player.toggle"
           >
-            {repeat === "one" ? (
-              <Repeat1 className="h-4 w-4" />
-            ) : (
-              <Repeat className="h-4 w-4" />
-            )}
+            <Timer size={16} />
           </button>
         </div>
 
-        {/* Progress */}
-        <div className="flex items-center gap-2 w-full max-w-md">
-          <span className="text-[10px] text-muted-foreground w-8 text-right flex-shrink-0">
+        {/* Row 2: Playback controls */}
+        <div className="flex items-center justify-center gap-2 w-full mb-1">
+          <button
+            type="button"
+            className={iconBtn(shuffle)}
+            style={{ width: 40, height: 40, minWidth: 40 }}
+            onClick={toggleShuffle}
+            data-ocid="player.toggle"
+          >
+            <Shuffle size={16} />
+          </button>
+          <button
+            type="button"
+            className="flex items-center justify-center rounded-full transition-all hover:scale-105 active:scale-95"
+            style={{
+              width: 44,
+              height: 44,
+              minWidth: 44,
+              background: "rgba(255,255,255,0.15)",
+              color: "white",
+            }}
+            onClick={prevTrack}
+            data-ocid="player.secondary_button"
+          >
+            <SkipBack size={20} />
+          </button>
+          <button
+            type="button"
+            className="flex items-center justify-center rounded-full transition-all hover:scale-105 active:scale-95"
+            style={{
+              width: 52,
+              height: 52,
+              minWidth: 52,
+              background: "linear-gradient(135deg, #8B5CF6, #EC4899)",
+              boxShadow: "0 0 20px rgba(139,92,246,0.5)",
+              color: "white",
+            }}
+            onClick={togglePlayPause}
+            data-ocid="player.primary_button"
+          >
+            {isPlaying ? <Pause size={22} /> : <Play size={22} />}
+          </button>
+          <button
+            type="button"
+            className="flex items-center justify-center rounded-full transition-all hover:scale-105 active:scale-95"
+            style={{
+              width: 44,
+              height: 44,
+              minWidth: 44,
+              background: "rgba(255,255,255,0.15)",
+              color: "white",
+            }}
+            onClick={nextTrack}
+            data-ocid="player.secondary_button"
+          >
+            <SkipForward size={20} />
+          </button>
+          <button
+            type="button"
+            className={iconBtn(repeat !== "off")}
+            style={{ width: 40, height: 40, minWidth: 40 }}
+            onClick={cycleRepeat}
+            data-ocid="player.toggle"
+          >
+            {repeat === "one" ? <Repeat1 size={16} /> : <Repeat size={16} />}
+          </button>
+        </div>
+
+        {/* Row 3: Progress bar full width */}
+        <div className="flex items-center gap-2 w-full px-1">
+          <span
+            className="text-xs tabular-nums flex-shrink-0"
+            style={{
+              color: "rgba(255,255,255,0.4)",
+              minWidth: 30,
+              fontSize: 10,
+            }}
+          >
             {formatDuration(currentTime)}
           </span>
-          <div
-            className="flex-1 relative h-4 flex items-center"
-            data-ocid="player.progress.panel"
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="0.1"
+            value={progress}
+            onChange={(e) =>
+              seekTo((Number.parseFloat(e.target.value) / 100) * duration)
+            }
+            className="progress-range flex-1 h-1 rounded-full outline-none"
+            style={{ "--progress": `${progress}%` } as React.CSSProperties}
+            data-ocid="player.input"
+          />
+          <span
+            className="text-xs tabular-nums flex-shrink-0"
+            style={{
+              color: "rgba(255,255,255,0.4)",
+              minWidth: 30,
+              textAlign: "right",
+              fontSize: 10,
+            }}
           >
-            <div className="absolute inset-x-0 h-1 rounded-full overflow-hidden pointer-events-none">
-              <div className="h-full rounded-full" style={bgStyle} />
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={duration || 100}
-              step={0.5}
-              value={currentTime}
-              onChange={handleProgressChange}
-              className="omp-range absolute inset-0 w-full"
-              data-ocid="player.seek.input"
-            />
-          </div>
-          <span className="text-[10px] text-muted-foreground w-8 flex-shrink-0">
             {formatDuration(duration)}
           </span>
         </div>
       </div>
 
-      {/* Right: Volume + extras */}
-      <div className="hidden md:flex items-center gap-2 w-[180px] flex-shrink-0 justify-end">
-        {sleepTimer?.active && (
+      {/* Desktop layout: single row */}
+      <div className="hidden md:flex items-center gap-3 px-4 py-3">
+        {/* Track info */}
+        <button
+          type="button"
+          className="flex items-center gap-3 min-w-0 w-64 text-left cursor-pointer rounded-lg hover:bg-white/5 transition-colors px-2 py-1"
+          onClick={() => currentTrack && setShowNowPlaying(true)}
+          data-ocid="player.open_modal_button"
+        >
+          {currentTrack ? (
+            <PlaceholderArt
+              title={currentTrack.title}
+              size={40}
+              className="rounded-lg flex-shrink-0"
+            />
+          ) : (
+            <div
+              className="w-10 h-10 rounded-lg flex-shrink-0"
+              style={{ background: "rgba(139,92,246,0.2)" }}
+            />
+          )}
+          <div className="min-w-0 flex-1">
+            <p
+              className="text-sm font-semibold truncate"
+              style={{ color: currentTrack ? "white" : "#4a4a5a" }}
+            >
+              {currentTrack?.title ?? "No track selected"}
+            </p>
+            <p
+              className="text-xs truncate"
+              style={{ color: "rgba(255,255,255,0.4)" }}
+            >
+              {currentTrack?.artist ?? ""}
+            </p>
+          </div>
+        </button>
+
+        {currentTrack && (
           <button
             type="button"
-            data-ocid="player.sleep_timer.toggle"
-            onClick={clearSleepTimer}
-            className="flex items-center gap-1 text-xs text-primary bg-primary/10 px-2 py-1 rounded-full hover:bg-primary/20 transition-colors"
-            title="Click to cancel sleep timer"
+            className="flex items-center justify-center w-9 h-9 rounded-full flex-shrink-0 transition-all hover:scale-110"
+            style={{ color: isFav ? "#EC4899" : "rgba(255,255,255,0.4)" }}
+            onClick={() => toggleFavorite(currentTrack.id)}
+            data-ocid="player.toggle"
           >
-            <Timer className="h-3 w-3" />
-            {formatRemaining(sleepTimer.remaining)}
+            <Heart size={16} fill={isFav ? "currentColor" : "none"} />
           </button>
         )}
 
-        {!sleepTimer?.active && (
-          <Popover open={sleepOpen} onOpenChange={setSleepOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                data-ocid="player.sleep_timer.open_modal_button"
-                className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-full"
-                title="Sleep timer"
-              >
-                <Timer className="h-4 w-4" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="w-48 bg-popover border-border p-3"
-              side="top"
-              data-ocid="player.sleep_timer.popover"
+        {/* Controls + progress */}
+        <div className="flex flex-col items-center gap-2 flex-1 max-w-xl mx-auto">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={iconBtn(shuffle)}
+              onClick={toggleShuffle}
+              data-ocid="player.toggle"
             >
-              <p className="text-xs font-medium mb-2">Sleep Timer</p>
-              <div className="grid grid-cols-2 gap-1.5 mb-2">
-                {SLEEP_PRESETS.map((m) => (
-                  <Button
-                    key={m}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={() => handleSleepPreset(m)}
-                    data-ocid={`player.sleep_timer.${m}min.button`}
-                  >
-                    {m} min
-                  </Button>
-                ))}
-              </div>
-              <div className="flex gap-1">
-                <Input
-                  type="number"
-                  placeholder="Custom"
-                  value={customMinutes}
-                  onChange={(e) => setCustomMinutes(e.target.value)}
-                  className="h-7 text-xs"
-                  min={1}
-                  data-ocid="player.sleep_timer_custom.input"
-                />
-                <Button
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={handleCustomSleep}
-                  data-ocid="player.sleep_timer_custom.button"
-                >
-                  Set
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
-        )}
-
-        <button
-          type="button"
-          data-ocid="player.voice.toggle"
-          onClick={toggleVoice}
-          className={cn(
-            "p-1.5 rounded-full transition-colors",
-            voiceActive
-              ? "text-primary"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-          title={voiceActive ? "Voice on — click to stop" : "Voice assistant"}
-        >
-          {voiceActive ? (
-            <Mic className="h-4 w-4" />
-          ) : (
-            <MicOff className="h-4 w-4" />
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-          data-ocid="player.volume_mute.toggle"
-        >
-          {volume === 0 ? (
-            <VolumeX className="h-4 w-4" />
-          ) : (
-            <Volume2 className="h-4 w-4" />
-          )}
-        </button>
-        <div className="relative h-4 flex items-center w-24">
-          <div className="absolute inset-x-0 h-1 rounded-full overflow-hidden pointer-events-none">
-            <div className="h-full rounded-full" style={volBgStyle} />
+              <Shuffle size={16} />
+            </button>
+            <button
+              type="button"
+              className="flex items-center justify-center w-10 h-10 rounded-full transition-all hover:scale-105 hover:bg-white/10"
+              style={{ color: "white" }}
+              onClick={prevTrack}
+              data-ocid="player.secondary_button"
+            >
+              <SkipBack size={20} />
+            </button>
+            <button
+              type="button"
+              className="flex items-center justify-center w-11 h-11 rounded-full transition-all hover:scale-105 active:scale-95"
+              style={{
+                background: "linear-gradient(135deg, #8B5CF6, #EC4899)",
+                boxShadow: "0 0 16px rgba(139,92,246,0.5)",
+                color: "white",
+              }}
+              onClick={togglePlayPause}
+              data-ocid="player.primary_button"
+            >
+              {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+            </button>
+            <button
+              type="button"
+              className="flex items-center justify-center w-10 h-10 rounded-full transition-all hover:scale-105 hover:bg-white/10"
+              style={{ color: "white" }}
+              onClick={nextTrack}
+              data-ocid="player.secondary_button"
+            >
+              <SkipForward size={20} />
+            </button>
+            <button
+              type="button"
+              className={iconBtn(repeat !== "off")}
+              onClick={cycleRepeat}
+              data-ocid="player.toggle"
+            >
+              {repeat === "one" ? <Repeat1 size={16} /> : <Repeat size={16} />}
+            </button>
           </div>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={volume}
-            onChange={(e) => setVolume(Number.parseFloat(e.target.value))}
-            className="omp-range absolute inset-0 w-full"
-            data-ocid="player.volume.input"
-          />
+          <div className="flex items-center gap-2 w-full">
+            <span
+              className="text-xs tabular-nums"
+              style={{ color: "rgba(255,255,255,0.4)", minWidth: 32 }}
+            >
+              {formatDuration(currentTime)}
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="0.1"
+              value={progress}
+              onChange={(e) =>
+                seekTo((Number.parseFloat(e.target.value) / 100) * duration)
+              }
+              className="progress-range flex-1 h-1 rounded-full outline-none"
+              style={{ "--progress": `${progress}%` } as React.CSSProperties}
+              data-ocid="player.input"
+            />
+            <span
+              className="text-xs tabular-nums"
+              style={{
+                color: "rgba(255,255,255,0.4)",
+                minWidth: 32,
+                textAlign: "right",
+              }}
+            >
+              {formatDuration(duration)}
+            </span>
+          </div>
         </div>
-      </div>
 
-      {/* Mobile: mute toggle */}
-      <div className="flex md:hidden items-center gap-1.5 flex-shrink-0">
-        <button
-          type="button"
-          onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-          className="text-muted-foreground"
-          data-ocid="player.mobile_mute.toggle"
-        >
-          {volume === 0 ? (
-            <VolumeX className="h-4 w-4" />
-          ) : (
-            <Volume2 className="h-4 w-4" />
+        {/* Utility controls */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            type="button"
+            className={iconBtn(showEQ)}
+            onClick={() => setShowEQ(!showEQ)}
+            title="Equalizer"
+            data-ocid="player.toggle"
+          >
+            <SlidersHorizontal size={16} />
+          </button>
+          <button
+            type="button"
+            className={iconBtn(voiceActive)}
+            onClick={toggleVoice}
+            title="Voice assistant"
+            data-ocid="player.toggle"
+          >
+            {voiceActive ? <Mic size={16} /> : <MicOff size={16} />}
+          </button>
+          <button
+            type="button"
+            className={iconBtn(sleepTimer.active)}
+            onClick={() =>
+              sleepTimer.active ? clearSleepTimer() : setShowTimer(!showTimer)
+            }
+            title={
+              sleepTimer.active
+                ? `Sleep: ${formatTimer(sleepTimer.remaining)}`
+                : "Sleep timer"
+            }
+            data-ocid="player.toggle"
+          >
+            <Timer size={16} />
+          </button>
+          {sleepTimer.active && (
+            <span className="text-xs tabular-nums" style={{ color: "#8B5CF6" }}>
+              {formatTimer(sleepTimer.remaining)}
+            </span>
           )}
-        </button>
+          <div className="relative">
+            <button
+              type="button"
+              className={iconBtn()}
+              onClick={() => setShowVol(!showVol)}
+              data-ocid="player.toggle"
+            >
+              {volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+            {showVol && (
+              <div
+                className="absolute bottom-full right-0 mb-2 p-3 rounded-xl"
+                style={{
+                  background: "rgba(20,15,40,0.97)",
+                  border: "1px solid rgba(139,92,246,0.4)",
+                  backdropFilter: "blur(20px)",
+                }}
+              >
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={volume}
+                  onChange={(e) => setVolume(Number.parseFloat(e.target.value))}
+                  className="w-24 h-1 rounded-full"
+                  data-ocid="player.input"
+                />
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

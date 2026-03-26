@@ -6,36 +6,8 @@ export function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function generateId(): string {
-  return crypto.randomUUID();
-}
-
-export function parseFilename(filename: string): {
-  title: string;
-  artist: string;
-} {
-  const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
-  if (nameWithoutExt.includes(" - ")) {
-    const idx = nameWithoutExt.indexOf(" - ");
-    const artist = nameWithoutExt.slice(0, idx).trim();
-    const title = nameWithoutExt.slice(idx + 3).trim();
-    return { title, artist };
-  }
-  return { title: nameWithoutExt, artist: "Unknown Artist" };
-}
-
-export function getDurationFromFile(file: File): Promise<number> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const audio = new Audio();
-    audio.addEventListener("loadedmetadata", () => {
-      URL.revokeObjectURL(url);
-      resolve(Number.isFinite(audio.duration) ? audio.duration : 0);
-    });
-    audio.addEventListener("error", () => {
-      URL.revokeObjectURL(url);
-      resolve(0);
-    });
-    audio.src = url;
-  });
+export function formatTimer(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }

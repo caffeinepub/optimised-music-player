@@ -1,104 +1,71 @@
-import { toast } from "sonner";
+type VoiceCommand = "play" | "pause" | "next" | "previous" | "shuffle";
+type CommandHandler = (cmd: VoiceCommand) => void;
 
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-}
-
-interface SpeechRecognitionInstance extends EventTarget {
-  continuous: boolean;
+interface SpeechRecognitionLike {
   lang: string;
+  continuous: boolean;
   interimResults: boolean;
+  onresult:
+    | ((event: {
+        results: {
+          length: number;
+          [i: number]: { [j: number]: { transcript: string } };
+        };
+      }) => void)
+    | null;
+  onerror: ((e: { error: string }) => void) | null;
+  onend: (() => void) | null;
   start(): void;
   stop(): void;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: ((event: Event) => void) | null;
-  onend: (() => void) | null;
 }
 
-declare global {
-  interface Window {
-    SpeechRecognition: new () => SpeechRecognitionInstance;
-    webkitSpeechRecognition: new () => SpeechRecognitionInstance;
+class VoiceAssistant {
+  private recognition: SpeechRecognitionLike | null = null;
+  private handler: CommandHandler | null = null;
+  private active = false;
+
+  init(handler: CommandHandler) {
+    this.handler = handler;
+    const w = window as Window & {
+      SpeechRecognition?: new () => SpeechRecognitionLike;
+      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+    };
+    const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!SR) return;
+    this.recognition = new SR();
+    this.recognition.lang = "en-US";
+    this.recognition.continuous = true;
+    this.recognition.interimResults = false;
+    this.recognition.onresult = (event) => {
+      const last = event.results[event.results.length - 1];
+      const t = last[0].transcript.trim().toLowerCase();
+      if (t.includes("next")) this.handler?.("next");
+      else if (t.includes("previous") || t.includes("prev"))
+        this.handler?.("previous");
+      else if (t.includes("pause")) this.handler?.("pause");
+      else if (t.includes("play")) this.handler?.("play");
+      else if (t.includes("shuffle")) this.handler?.("shuffle");
+    };
+    this.recognition.onerror = (e) => {
+      if (e.error !== "no-speech") console.error("Voice error", e.error);
+    };
+    this.recognition.onend = () => {
+      if (this.active) this.recognition?.start();
+    };
   }
-}
 
-export type VoiceCommands = {
-  play: () => void;
-  pause: () => void;
-  next: () => void;
-  previous: () => void;
-  shuffle: () => void;
-  stop: () => void;
-};
-
-let recognition: SpeechRecognitionInstance | null = null;
-let active = false;
-
-export function startVoiceRecognition(commands: VoiceCommands): void {
-  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRec) {
-    toast.error("Voice assistant not available in this browser");
-    return;
+  start() {
+    this.active = true;
+    try {
+      this.recognition?.start();
+    } catch (_) {}
   }
-
-  if (recognition) {
-    recognition.stop();
-  }
-
-  recognition = new SpeechRec();
-  recognition.continuous = true;
-  recognition.lang = "en-US";
-  recognition.interimResults = false;
-
-  recognition.onresult = (event: SpeechRecognitionEvent) => {
-    const last = event.results.length - 1;
-    const transcript = event.results[last][0].transcript.toLowerCase().trim();
-
-    if (transcript.includes("play")) {
-      commands.play();
-      toast.success("🎤 Voice: Play");
-    } else if (transcript.includes("pause")) {
-      commands.pause();
-      toast.success("🎤 Voice: Pause");
-    } else if (transcript.includes("next")) {
-      commands.next();
-      toast.success("🎤 Voice: Next");
-    } else if (transcript.includes("previous") || transcript.includes("prev")) {
-      commands.previous();
-      toast.success("🎤 Voice: Previous");
-    } else if (transcript.includes("shuffle")) {
-      commands.shuffle();
-      toast.success("🎤 Voice: Shuffle");
-    } else if (transcript.includes("stop")) {
-      commands.stop();
-      toast.success("🎤 Voice: Stop");
-    }
-  };
-
-  recognition.onerror = () => {
-    active = false;
-  };
-
-  recognition.onend = () => {
-    if (active) {
-      try {
-        recognition?.start();
-      } catch {}
-    }
-  };
-
-  active = true;
-  try {
-    recognition.start();
-  } catch {
-    toast.error("Could not start voice recognition");
+  stop() {
+    this.active = false;
+    try {
+      this.recognition?.stop();
+    } catch (_) {}
   }
 }
 
-export function stopVoiceRecognition(): void {
-  active = false;
-  if (recognition) {
-    recognition.stop();
-    recognition = null;
-  }
-}
+export const voiceAssistant = new VoiceAssistant();

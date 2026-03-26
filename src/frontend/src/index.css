@@ -6,145 +6,108 @@
 
 @layer base {
   :root {
-    --radius: 0.5rem;
-
-    /* Spotify Dark Theme — OKLCH tokens */
-    --background: 0.13 0 0;
+    --background: 0.08 0.01 280;
     --foreground: 0.97 0 0;
-    --card: 0.165 0 0;
+    --card: 0.12 0.015 280;
     --card-foreground: 0.97 0 0;
-    --popover: 0.2 0 0;
+    --popover: 0.13 0.02 280;
     --popover-foreground: 0.97 0 0;
-    --primary: 0.69 0.19 145;
-    --primary-foreground: 0.1 0 0;
-    --secondary: 0.22 0 0;
+    --primary: 0.65 0.22 300;
+    --primary-foreground: 0.97 0 0;
+    --secondary: 0.18 0.02 280;
     --secondary-foreground: 0.97 0 0;
-    --muted: 0.22 0 0;
-    --muted-foreground: 0.72 0 0;
-    --accent: 0.25 0 0;
+    --muted: 0.2 0.02 280;
+    --muted-foreground: 0.6 0.05 280;
+    --accent: 0.65 0.25 330;
     --accent-foreground: 0.97 0 0;
-    --destructive: 0.65 0.22 25;
+    --destructive: 0.55 0.22 25;
     --destructive-foreground: 0.97 0 0;
-    --border: 0.22 0 0;
-    --input: 0.25 0 0;
-    --ring: 0.69 0.19 145;
-    --chart-1: 0.69 0.19 145;
-    --chart-2: 0.6 0.15 200;
-    --chart-3: 0.7 0.15 60;
-    --chart-4: 0.65 0.2 300;
-    --chart-5: 0.6 0.18 30;
-    --sidebar: 0.13 0 0;
-    --sidebar-foreground: 0.97 0 0;
-    --sidebar-primary: 0.69 0.19 145;
-    --sidebar-primary-foreground: 0.1 0 0;
-    --sidebar-accent: 0.22 0 0;
+    --border: 0.22 0.04 280;
+    --input: 0.22 0.04 280;
+    --ring: 0.65 0.22 300;
+    --radius: 0.75rem;
+    --chart-1: 0.65 0.22 300;
+    --chart-2: 0.65 0.25 330;
+    --chart-3: 0.7 0.2 200;
+    --chart-4: 0.65 0.18 145;
+    --chart-5: 0.6 0.18 25;
+    --sidebar: 0.06 0.015 280;
+    --sidebar-foreground: 0.75 0.05 280;
+    --sidebar-primary: 0.65 0.22 300;
+    --sidebar-primary-foreground: 0.97 0 0;
+    --sidebar-accent: 0.18 0.04 280;
     --sidebar-accent-foreground: 0.97 0 0;
-    --sidebar-border: 0.2 0 0;
-    --sidebar-ring: 0.69 0.19 145;
-  }
-
-  * {
-    @apply border-border;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-    font-family: "Figtree", system-ui, -apple-system, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  html {
-    color-scheme: dark;
+    --sidebar-border: 0.18 0.03 280;
+    --sidebar-ring: 0.65 0.22 300;
   }
 }
 
-@layer utilities {
-  /* Equalizer animation */
-  @keyframes eq-bounce {
-    0%,
-    100% {
-      transform: scaleY(0.3);
-    }
-    50% {
-      transform: scaleY(1);
-    }
+@layer base {
+  * {
+    @apply border-border;
   }
+  body {
+    @apply bg-background text-foreground font-body;
+    -webkit-font-smoothing: antialiased;
+    background: #0a0a14;
+  }
+}
 
-  .eq-bar {
-    width: 3px;
-    border-radius: 2px;
-    transform-origin: bottom;
-    background-color: oklch(var(--primary));
-    animation: eq-bounce 0.6s ease-in-out infinite;
-  }
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-track {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  height: 4px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: white;
+  border-radius: 50%;
+  height: 14px;
+  width: 14px;
+  margin-top: -5px;
+  box-shadow: 0 0 6px rgba(139, 92, 246, 0.6);
+}
+input[type="range"].progress-range::-webkit-slider-track {
+  background: linear-gradient(
+    to right,
+    #8b5cf6 0%,
+    #ec4899 var(--progress, 0%),
+    rgba(255, 255, 255, 0.15) var(--progress, 0%)
+  );
+}
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.4);
+  border-radius: 3px;
+}
 
-  .eq-bar:nth-child(1) {
-    animation-delay: 0s;
+@keyframes waveBar {
+  from {
+    transform: scaleY(0.3);
   }
-  .eq-bar:nth-child(2) {
-    animation-delay: 0.15s;
+  to {
+    transform: scaleY(1);
   }
-  .eq-bar:nth-child(3) {
-    animation-delay: 0.3s;
-  }
+}
 
-  /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
   }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: oklch(var(--muted-foreground) / 0.35);
-    border-radius: 4px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: oklch(var(--muted-foreground) / 0.6);
-  }
-
-  /* Progress / volume range input */
-  .omp-range {
-    -webkit-appearance: none;
-    appearance: none;
-    height: 4px;
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-    background: transparent;
-  }
-  .omp-range::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: white;
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-  .omp-range:hover::-webkit-slider-thumb {
-    opacity: 1;
-  }
-  .omp-range::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: white;
-    cursor: pointer;
-    border: none;
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-  .omp-range:hover::-moz-range-thumb {
-    opacity: 1;
-  }
-
-  .glass {
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+  50% {
+    box-shadow: 0 0 24px rgba(236, 72, 153, 0.7);
   }
 }
